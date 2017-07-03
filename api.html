@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html ng-app="app">
+	<head>
+		<meta charset="UTF-8">
+		<title>phresql angularjs client</title>
+		<style>
+			a {
+				display: block;
+				cursor: pointer;
+				padding:2px;
+				background-color: lightblue;
+				width:80px;
+				text-align: center;
+			}
+			th,td {
+				text-align: left;
+			}
+		</style>
+	</head>
+	<body>
+		<div ng-controller="notes_ctrl" ng-init="get_notes()">
+
+			<table>
+				<tr>
+					<th>Tag</th><th>Entry</th><th>Active</th><th></th><th></th>
+				</tr>
+				<tr>
+					<td><input type="text" id="new_tag" ng-model="note.tag" /></td>
+					<td><input type="text" id="new_entry" ng-model="note.entry" /></td>
+					<td><select name="active" disabled><option value="1">Yes</option></select></td>
+					<td><a ng-click="insert_note(note.tag, note.entry)">Insert</a></td>
+					<td></td>
+				</tr>
+				<tr ng-repeat="n in notes">
+					<td><input type="text" id="tag" ng-model="n.tag" /></td>
+					<td><input type="text" id="entry" ng-model="n.entry" /></td>
+					<td>
+						<select ng-model="n.active">
+							<option data-ng-repeat="a in is_active" value="{{a.value}}" ng-selected="a.value==n.active">
+								{{a.name}}
+							</option>
+						</select>
+					</td>
+					<td><a ng-click="update_note(n.id, n.tag, n.entry, n.active)">Update</a></td>
+					<td><a ng-click="delete_note(n.id,$index)">Delete</a></td>
+				</tr>
+			</table>
+			<p style="color: blue">{{message}}</p>
+		</div>
+	</body>
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.6/angular.min.js"></script>
+	<script>
+		var app = angular.module('app',[]);
+
+		app.controller('notes_ctrl', ['$scope','notes_service', function ($scope,notes_service) {
+
+			$scope.is_active = [
+				{name:'No', value:0},
+				{name:'Yes', value:1}
+			];
+			$scope.note = [
+				{tag:null, entry:null}
+			];
+
+			$scope.update_note = function (id,tag,entry,active) {
+				if (tag != '' && entry != '' && active != '') {
+					notes_service.update_note(id,tag,entry,active)
+							.then(function success(response){
+										$scope.message = 'Note updated!';
+									},
+									function error(response){
+										$scope.message = JSON.parse(response.data);
+									});
+				}
+				else {
+					$scope.message = 'Please enter missing fields!';
+				}
+			}
+
+			$scope.insert_note = function () {
+				if ($scope.note.tag != null && $scope.note.entry != null) {
+					notes_service.insert_note($scope.note.tag, $scope.note.entry)
+							.then (function success(response){
+										$scope.message = 'Note added!';
+										$scope.notes.push({'id':JSON.parse(response.data),'tag':$scope.note.tag, 'entry':$scope.note.entry, 'active':1});
+										$scope.note.tag = null;
+										$scope.note.entry = null;
+									},
+									function error(response){
+										$scope.message = JSON.parse(response.data);
+									});
+				}
+				else {
+					$scope.message = 'Please enter missing fields!';
+				}
+			}
+
+			$scope.delete_note = function (id,index) {
+				notes_service.delete_note(id)
+						.then (function success(response){
+									if (response.status === 400){
+										$scope.message = response.data;
+									}
+									else {
+										$scope.message = 'Note deleted!';
+										$scope.notes.splice( index, 1 );
+									}
+
+								},
+								function error(response){
+									$scope.message = JSON.parse(response.data);
+								})
+			}
+
+			$scope.get_notes = function () {
+				notes_service.get_notes()
+						.then(function success(response){
+									if (response.status === 202){
+										$scope.notes = [];
+										$scope.message = JSON.parse(response.data);
+									}
+									else {
+										$scope.notes = response.data;
+									}
+								},
+								function error (response ){
+									$scope.message = 'Error getting notes!';
+								});
+			}
+		}]);
+
+		app.service('notes_service',['$http', function ($http) {
+
+			var api = "http://localhost:8080/api.php/";
+
+			this.get_note = function get_note(id){
+				return $http({
+					method: 'GET',
+					url: api + 'notes/'+id
+				});
+			}
+
+			this.insert_note = function insert_note(tag, entry){
+				return $http({
+					method: 'PUT',
+					url: api + 'notes',
+					data: {tag:tag, entry:entry}
+				});
+			}
+
+			this.delete_note = function delete_note(id){
+				return $http({
+					method: 'DELETE',
+					url: api + 'notes/'+id
+				})
+			}
+
+			this.update_note = function update_note(id, tag, entry, active){
+				return $http({
+					method: 'PATCH',
+					url: api + 'notes/'+id,
+					data: {tag:tag, entry:entry, active:active}
+				})
+			}
+
+			this.get_notes = function get_notes(){
+				return $http({
+					method: 'GET',
+					url: api + 'notes'
+				});
+			}
+		}]);
+	</script>
+</html>
